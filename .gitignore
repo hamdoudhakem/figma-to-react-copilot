@@ -1,3 +1,9 @@
+# Python
+backend-fastapi/venv/
 */.env
 **/__pycache__/
 *.gguf
+
+# Spring boot
+backend-spring/target/
+backend-spring/.gradle/
