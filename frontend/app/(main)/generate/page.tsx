@@ -1,175 +1,277 @@
 "use client";
 
 import React, { useState } from "react";
-import { Terminal, Play, Sparkles, AlertCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import LiveCanvasView from "@/app/(main)/components/LiveCanvasView";
+import { getOrCreateSessionId } from "@/app/utils/session";
+import {
+  Sparkles,
+  Loader2,
+  Link2,
+  Code2,
+  AlertCircle,
+  Eye,
+  Terminal,
+  Copy,
+  Check,
+  Cpu,
+  Edit3,
+} from "lucide-react";
 
-export default function GenerateCanvasPage() {
+export default function AIComponentStudio() {
+  const queryClient = useQueryClient(); // Instantiated to control global React Query cache state
+
   const [figmaUrl, setFigmaUrl] = useState("");
-  const [promptOverride, setPromptOverride] = useState("");
-  const [streamingCode, setStreamingCode] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStartGeneration = async (e: React.FormEvent) => {
+  const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!generatedCode) return;
+    await navigator.clipboard.writeText(generatedCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Clean syntax decorators added by the model
+  const cleanMarkdownWrappers = (rawCode: string) => {
+    let clean = rawCode.trim();
+    if (clean.startsWith("```")) {
+      clean = clean.replace(/^```(jsx|tsx|html|javascript|typescript)?\n/, "");
+    }
+    if (clean.endsWith("```")) {
+      clean = clean.replace(/```$/, "");
+    }
+    return clean;
+  };
+
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!figmaUrl.trim()) return;
+    if (!figmaUrl.trim() && !prompt.trim()) return;
 
-    setIsGenerating(true);
-    setStreamingCode("");
-    setErrorMessage(null);
+    setIsLoading(true);
+    setError(null);
 
     try {
-      // Direct call utilizing our Next.js transparent rewrite layer configuration
       const response = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Session-ID": getOrCreateSessionId(),
+        },
         body: JSON.stringify({
-          figma_url: figmaUrl,
-          prompt_override: promptOverride || null,
+          figma_url: figmaUrl.trim(),
+          prompt: prompt.trim(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Server returned error payload code: ${response.status}`,
-        );
+        throw new Error(`Engine deployment failure: Status ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
+      const rawText = await response.text();
 
-      if (!reader) {
-        throw new Error(
-          "Unable to establish readable stream interface engine from backend.",
-        );
+      if (rawText.startsWith("⚠️")) {
+        throw new Error(rawText);
       }
 
-      // Stream Consumption Loop
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const tokenChunk = decoder.decode(value, { stream: true });
-
-        // Intercept inline backend pipeline runtime errors cleanly
-        if (tokenChunk.startsWith("⚠️")) {
-          setErrorMessage(tokenChunk);
-          break;
-        }
-
-        setStreamingCode((prev) => prev + tokenChunk);
-      }
+      const cleanCode = cleanMarkdownWrappers(rawText);
+      setGeneratedCode(cleanCode);
+      setActiveTab("preview");
     } catch (err: any) {
-      setErrorMessage(
-        err.message || "An unexpected communication fault occurred.",
-      );
+      console.error("🔴 [Generation Fault]:", err);
+      setError(err.message || "An unexpected automation error occurred.");
     } finally {
-      setIsGenerating(false);
+      setIsLoading(false);
+
+      // FIXED: Force React Query to clear cache and pull fresh entries for both tables immediately
+      queryClient.invalidateQueries({ queryKey: ["logs"] });
+      queryClient.invalidateQueries({ queryKey: ["components"] });
     }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 h-full flex flex-col">
       <div>
-        <h1 className="text-3xl font-bold text-white tracking-tight">
-          Copilot Generation Canvas
+        <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+          <Sparkles className="text-blue-500 h-7 w-7" />
+          Figma Compiler Studio
         </h1>
-        <p className="text-gray-400 mt-2">
-          Paste a Figma URL node to trigger the MCP extraction engine and stream
-          structural code components.
+        <p className="text-gray-400 mt-1">
+          Ingest vector frame blueprints, render components instantly, and
+          modify source code directly.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-        {/* Left Interactive Control Panel Form */}
-        <form
-          onSubmit={handleStartGeneration}
-          className="lg:col-span-2 bg-[#151B2C] border border-gray-800 p-6 rounded-2xl space-y-6"
-        >
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300 block">
-              Figma Node Canvas URL
-            </label>
-            <input
-              type="url"
-              required
-              disabled={isGenerating}
-              value={figmaUrl}
-              onChange={(e) => setFigmaUrl(e.target.value)}
-              placeholder="https://www.figma.com/design/..."
-              className="w-full bg-[#0B0F19] border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300 block">
-              Custom Prompt System Overrides (Optional)
-            </label>
-            <textarea
-              rows={4}
-              disabled={isGenerating}
-              value={promptOverride}
-              onChange={(e) => setPromptOverride(e.target.value)}
-              placeholder="e.g., Modify the primary brand color matrix to use emerald instead of slate utility weights..."
-              className="w-full bg-[#0B0F19] border border-gray-700 rounded-xl p-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition resize-none"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isGenerating || !figmaUrl.trim()}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-medium text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition duration-200 shadow-lg shadow-blue-600/10"
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch flex-1 min-h-[550px]">
+        {/* Left Control Column */}
+        <div className="lg:col-span-4 bg-[#151B2C] border border-gray-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+          <form
+            onSubmit={handleGenerate}
+            className="space-y-5 flex-1 flex flex-col justify-between"
           >
-            {isGenerating ? (
-              <>
-                <Sparkles className="h-4 w-4 animate-spin text-blue-300" />
-                Interrogating MCP Server...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 fill-current" />
-                Execute Generation Pipeline
-              </>
-            )}
-          </button>
-        </form>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="block text-xs font-mono uppercase tracking-wider text-gray-400 font-semibold">
+                  Figma Node Blueprint URL
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
+                    <Link2 className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="url"
+                    value={figmaUrl}
+                    onChange={(e) => setFigmaUrl(e.target.value)}
+                    placeholder="https://www.figma.com/file/..."
+                    className="w-full bg-[#0B0F19] border border-gray-800 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
 
-        {/* Right High-Fidelity Streaming Preview Screen Terminal */}
-        <div className="lg:col-span-3 flex flex-col h-[520px] bg-[#0E1321] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="bg-[#151B2C] px-5 py-3.5 border-b border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Terminal className="h-4 w-4 text-gray-400" />
-              <span className="text-xs font-mono font-medium tracking-wider text-gray-300">
-                STREAMING_OUTPUT_BUFFER
-              </span>
+              <div className="space-y-2">
+                <label className="block text-xs font-mono uppercase tracking-wider text-gray-400 font-semibold">
+                  Style Modifiers & Prompt Directives (Optional)
+                </label>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="e.g., Modify the card spacing to match strict grid systems, change typography tracking..."
+                  className="w-full h-36 bg-[#0B0F19] border border-gray-800 rounded-xl p-4 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition resize-none font-sans leading-relaxed"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-950/20 border border-red-900/30 text-red-400 p-4 rounded-xl text-xs flex gap-2.5 items-start">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span className="font-mono">{error}</span>
+                </div>
+              )}
             </div>
-            {isGenerating && (
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
+
+            <button
+              type="submit"
+              disabled={isLoading || (!figmaUrl.trim() && !prompt.trim())}
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-medium text-sm py-3.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Compiling Blueprint Structure...
+                </>
+              ) : (
+                <>
+                  <Code2 className="h-4 w-4" />
+                  Compile to Live React Component
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Right Workspace Preview/Code Panel */}
+        <div className="lg:col-span-8 flex flex-col h-full space-y-3">
+          <div className="flex items-center justify-between bg-[#151B2C] border border-gray-800 rounded-xl px-4 py-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab("preview")}
+                disabled={!generatedCode || isLoading}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition font-mono ${
+                  activeTab === "preview"
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 disabled:opacity-30"
+                }`}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Live Preview
+              </button>
+              <button
+                onClick={() => setActiveTab("code")}
+                disabled={!generatedCode || isLoading}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition font-mono ${
+                  activeTab === "code"
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 disabled:opacity-30"
+                }`}
+              >
+                <Terminal className="h-3.5 w-3.5" />
+                Source Code Editor
+              </button>
+            </div>
+
+            {generatedCode && activeTab === "code" && !isLoading && (
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md">
+                  <Edit3 className="h-3 w-3" /> Live Sandbox Workspace
+                  (Editable)
+                </span>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-gray-400 hover:text-white bg-[#0B0F19] border border-gray-800 rounded-lg transition"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-green-400" />
+                      <span className="text-green-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>Copy Code</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 
-          <div className="flex-1 p-6 overflow-auto font-mono text-xs text-emerald-400 space-y-4">
-            {errorMessage && (
-              <div className="bg-red-950/30 border border-red-900/50 rounded-xl p-4 flex gap-3 text-red-400">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">{errorMessage}</p>
+          <div className="flex-1 min-h-[450px] relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-[#0B0F19] border border-gray-800 rounded-2xl flex flex-col items-center justify-center p-8 space-y-6 z-20 shadow-2xl">
+                <div className="w-16 h-16 rounded-2xl border-2 border-dashed border-blue-500/40 flex items-center justify-center animate-spin">
+                  <Cpu className="h-6 w-6 text-blue-500 animate-pulse" />
+                </div>
+                <div className="text-center space-y-2 max-w-sm">
+                  <h3 className="text-sm font-semibold text-white uppercase font-mono tracking-wide">
+                    Executing Layout Pipeline Engine
+                  </h3>
+                  <p className="text-xs text-gray-400 font-mono animate-pulse">
+                    Synthesizing responsive code matrices...
+                  </p>
+                </div>
               </div>
             )}
 
-            {streamingCode ? (
-              <pre className="whitespace-pre-wrap leading-relaxed select-text">
-                {streamingCode}
-              </pre>
-            ) : (
-              !errorMessage && (
-                <span className="text-gray-600 italic">
-                  Await stream initialization hook...
-                </span>
+            {!generatedCode && !isLoading ? (
+              <div className="h-full min-h-[450px] w-full border border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-gray-500 bg-[#0E1322]">
+                <Code2 className="h-8 w-8 text-gray-700 mb-3" />
+                <p className="text-sm font-medium text-gray-400">
+                  Workspace Sandbox Idle
+                </p>
+                <p className="text-xs text-gray-600 mt-1 max-w-xs font-mono">
+                  Provide a valid Figma URL token to initialize compile
+                  execution.
+                </p>
+              </div>
+            ) : generatedCode && !isLoading ? (
+              activeTab === "preview" ? (
+                <LiveCanvasView code={generatedCode} />
+              ) : (
+                <textarea
+                  value={generatedCode}
+                  onChange={(e) => setGeneratedCode(e.target.value)}
+                  placeholder="Paste or modify code layout components here..."
+                  className="w-full h-full min-h-[450px] border border-gray-800 rounded-2xl bg-[#0B0F19] font-mono text-xs text-blue-400 p-5 focus:outline-none focus:border-blue-500 resize-none leading-relaxed selection:bg-blue-500/20"
+                  spellCheck={false}
+                />
               )
-            )}
+            ) : null}
           </div>
         </div>
       </div>

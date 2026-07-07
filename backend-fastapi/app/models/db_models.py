@@ -14,6 +14,8 @@ class DBComponent(Base):
   generated_code: Mapped[str] = mapped_column(Text, nullable=True)
   status: Mapped[str] = mapped_column(String(50), default="SYNCED")
   last_updated: Mapped[str] = mapped_column(String(50), default=lambda: datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+  # Added to match your SQL migration layer
+  session_id: Mapped[str] = mapped_column(String(255), default="PORTFOLIO_SEED", nullable=False)
 
 
 class DBAuditLog(Base):
@@ -25,3 +27,5 @@ class DBAuditLog(Base):
   target_component: Mapped[str] = mapped_column(String(255), nullable=False)
   duration: Mapped[str] = mapped_column(String(50), nullable=False)
   status: Mapped[str] = mapped_column(String(50), default="SUCCESS")
+  # Added to match your SQL migration layer
+  session_id: Mapped[str] = mapped_column(String(255), default="PORTFOLIO_SEED", nullable=False)
