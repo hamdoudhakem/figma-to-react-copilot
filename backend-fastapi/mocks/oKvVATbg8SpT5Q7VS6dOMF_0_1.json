@@ -1,0 +1,22 @@
+schema: v3
+root:
+  type: CANVAS
+  name: Page 1
+  children:
+    - type: RECTANGLE
+      name: Rectangle 1
+      style:
+        background: rgba(118, 118, 118, 1)
+    - type: RECTANGLE
+      name: Rectangle 2
+      style:
+        background: rgba(217, 217, 217, 1)
+    - type: TEXT
+      text: Hi there :)
+      style:
+        color: rgba(0, 0, 0, 1)
+        font: Inter
+        fontSize: 12
+        fontWeight: 400
+        lineHeight: 14.52
+        textAlign: left

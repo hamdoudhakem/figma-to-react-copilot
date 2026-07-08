@@ -16,18 +16,16 @@ _orig_validate_json = mcp.types.JSONRPCMessage.model_validate_json
 def _resilient_validate_json(cls, json_data, *args, **kwargs):
   """Intercepts raw stdout streams, silencing text debug noise from the server."""
   try:
-    # Decode data safely to inspect its structure
     data_str = json_data.decode('utf-8', errors='ignore') if isinstance(json_data, bytes) else str(json_data)
 
     # If the line doesn't start with a JSON bracket, it's a rogue console.log statement.
-    # We transform it into a valid JSON-RPC notification that the client drops silently.
+    # FIX: We now use a valid parameter-less specification method to completely bypass Pydantic validation noise.
     if not data_str.strip().startswith("{"):
-      return _orig_validate_json('{"jsonrpc": "2.0", "method": "mcp/silence_noise_filter"}')
+      return _orig_validate_json('{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}')
 
     return _orig_validate_json(json_data, *args, **kwargs)
   except Exception:
-    # Fallback to keep the background stream reader alive no matter what
-    return _orig_validate_json('{"jsonrpc": "2.0", "method": "mcp/silence_noise_filter"}')
+    return _orig_validate_json('{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}')
 
 
 # Bind the interceptor directly into the MCP parsing library
