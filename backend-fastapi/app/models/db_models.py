@@ -17,16 +17,20 @@ class DBComponent(Base):
       String(50), default=lambda: datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"))
   # Added to match your SQL migration layer
   session_id: Mapped[str] = mapped_column(String(255), default="PORTFOLIO_SEED", nullable=False)
+  user_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class DBAuditLog(Base):
   __tablename__ = "audit_logs"
 
   id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-  timestamp: Mapped[str] = mapped_column(String(50), default=lambda: datetime.now().astimezone().strftime("%H:%M:%S"))
+  # Updated to use standard datetime factory format explicitly
+  timestamp: Mapped[str] = mapped_column(
+      String(50),
+      default=lambda: datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+  )
   action: Mapped[str] = mapped_column(String(255), nullable=False)
   target_component: Mapped[str] = mapped_column(String(255), nullable=False)
   duration: Mapped[str] = mapped_column(String(50), nullable=False)
-  status: Mapped[str] = mapped_column(String(50), default="SUCCESS")
-  # Added to match your SQL migration layer
+  status: Mapped[str] = mapped_column(String(50), nullable=False)
   session_id: Mapped[str] = mapped_column(String(255), default="PORTFOLIO_SEED", nullable=False)

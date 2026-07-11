@@ -1,280 +1,310 @@
 "use client";
 
-import React, { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getOrCreateSessionId } from "@/app/utils/session";
-import LiveCanvasView from "@/app/(main)/components/LiveCanvasView";
 import {
-  Code,
-  ExternalLink,
-  RefreshCw,
+  Cpu,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Clock,
   Layers,
+  Server,
+  RefreshCw,
   Loader2,
-  CalendarClock,
-  Eye,
-  Terminal,
-  X,
-  Check,
-  Copy,
 } from "lucide-react";
 
-interface DBComponent {
-  id: string;
-  name: string;
-  figma_url: string;
-  generated_code: string | null;
-  status: string;
-  session_id: string;
-  last_updated: string;
+interface SystemStats {
+  ollamaStatus: "ONLINE" | "OFFLINE";
+  modelName: string;
+  totalGenerations: number;
+  successCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  avgDurationSec: number;
+  activeSessionId: string;
+  recentLogs: Array<{
+    id: number;
+    action: string;
+    target_component: string;
+    duration: string;
+    status: string;
+    timestamp: string;
+  }>;
 }
 
-export default function ComponentLibraryPage() {
-  const queryClient = useQueryClient();
-  const [selectedComponent, setSelectedComponent] =
-    useState<DBComponent | null>(null);
-  const [viewerTab, setViewerTab] = useState<"preview" | "code">("preview");
-  const [copied, setCopied] = useState(false);
-
-  // FIXED: Harmonized queryKey to ["components"] to match the Studio page's invalidation triggers
+export default function AnalyticsDashboardPage() {
   const {
-    data: components,
+    data: stats,
     isLoading,
     isRefetching,
     refetch,
     error,
-  } = useQuery<DBComponent[]>({
-    queryKey: ["components"],
+  } = useQuery<SystemStats>({
+    queryKey: ["systemAnalytics"],
     queryFn: async () => {
-      const response = await fetch("/api/components", {
+      const response = await fetch("/api/analytics/stats", {
         headers: {
           "X-Session-ID": getOrCreateSessionId(),
         },
       });
       if (!response.ok)
-        throw new Error(
-          "Failed to sync library snapshot index layers from Supabase.",
-        );
+        throw new Error("Failed to pull system operational matrix metrics.");
       return response.json();
     },
+    refetchInterval: 15000, // Automagically refetches every 15s to monitor Ollama logs
   });
 
-  // SAFETY FIX: Prevents "Compilation Runtime Blocked" by removing code blocks and tracking empty values
-  const cleanMarkdownWrappers = (rawCode: string | null) => {
-    if (!rawCode || rawCode.trim() === "") {
-      return `export default function App() {\n  return (\n    <div className="p-6 text-center text-gray-500 font-mono text-xs">\n      ⚠️ No structural component source code found.\n    </div>\n  );\n}`;
-    }
-    let clean = rawCode.trim();
-    if (clean.startsWith("```")) {
-      clean = clean.replace(/^```(jsx|tsx|html|javascript|typescript)?\n/, "");
-    }
-    if (clean.endsWith("```")) {
-      clean = clean.replace(/```$/, "");
-    }
-    return clean;
-  };
-
-  const handleCopy = async (code: string) => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <div className="space-y-8 relative min-h-full">
+    <div className="space-y-8 relative min-h-full text-white">
+      {/* Top Header Layer */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            Component Library
+          <h1 className="text-3xl font-bold tracking-tight">
+            System Control Panel
           </h1>
           <p className="text-gray-400 mt-2">
-            Monitor live structural snapshots saved to your Supabase cloud
-            database instance.
+            Monitor model connection logs, generation latency loops, and
+            Supabase ledger telemetry.
           </p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isLoading || isRefetching}
-          className="bg-[#151B2C] border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition hover:bg-gray-800 disabled:opacity-50 shrink-0"
+          className="bg-[#151B2C] border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition hover:bg-gray-800 disabled:opacity-50"
         >
           {isRefetching ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          Refresh Library
+          Sync Server Metrics
         </button>
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((idx) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((idx) => (
             <div
               key={idx}
-              className="bg-[#151B2C] border border-gray-800 h-64 rounded-2xl animate-pulse"
+              className="bg-[#151B2C] border border-gray-800 h-28 rounded-2xl animate-pulse"
             />
           ))}
         </div>
       ) : error ? (
         <div className="bg-red-950/20 border border-red-900/40 text-red-400 p-5 rounded-2xl text-sm font-mono">
-          Failed to load remote schema parameters matrix:{" "}
-          {(error as Error).message}
-        </div>
-      ) : components?.length === 0 ? (
-        <div className="border border-dashed border-gray-800 rounded-2xl p-16 text-center space-y-4">
-          <Layers className="h-10 w-10 text-gray-600 mx-auto" />
-          <p className="text-gray-400 text-sm max-w-sm mx-auto">
-            No code outputs stored in this session layer yet. Navigate to the AI
-            Component Studio to trigger your first automation run.
-          </p>
+          System Metrics Link Broken: {(error as Error).message}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {components?.map((comp) => (
-            <div
-              key={comp.id}
-              className="bg-[#151B2C] border border-gray-800 rounded-2xl p-5 flex flex-col justify-between hover:border-gray-700 transition duration-200 shadow-xl group relative"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  {comp.session_id === "PORTFOLIO_SEED" ? (
-                    <span className="text-[10px] font-mono font-medium uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                      Master Showcase
-                    </span>
-                  ) : (
-                    <span className="text-xs bg-blue-500/10 text-blue-400 font-semibold px-2.5 py-1 rounded-lg border border-blue-500/10">
-                      {comp.status}
-                    </span>
-                  )}
-                  <span className="text-[11px] font-mono text-gray-600 group-hover:text-gray-400 truncate">
-                    {comp.id}
-                  </span>
-                </div>
+        <>
+          {/* 📡 ROW 1: CORE INFRASTRUCTURE & INFRA STATUS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Ollama Instance Card */}
+            <div className="bg-[#151B2C] border border-gray-800 rounded-2xl p-5 flex items-center justify-between shadow-xl">
+              <div className="space-y-1">
+                <span className="text-xs font-mono text-gray-400 block">
+                  Ollama Node Host
+                </span>
+                <span className="text-sm font-semibold block font-mono">
+                  127.0.0.1:11434
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 text-xs font-mono mt-2 px-2 py-0.5 rounded-md border ${
+                    stats?.ollamaStatus === "ONLINE"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : "bg-red-500/10 text-red-400 border-red-500/20"
+                  }`}
+                >
+                  <Server className="h-3 w-3" />
+                  {stats?.ollamaStatus}
+                </span>
+              </div>
+              <div className="p-3 bg-[#0B0F19] border border-gray-800 rounded-xl text-blue-400">
+                <Activity className="h-5 w-5" />
+              </div>
+            </div>
 
-                <div>
-                  <h3 className="text-white font-medium text-base tracking-wide truncate">
-                    {comp.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-gray-500 text-xs mt-1.5 font-mono">
-                    <CalendarClock className="h-3.5 w-3.5" />
-                    Updated: {comp.last_updated}
+            {/* Quantized LLM Loaded */}
+            <div className="bg-[#151B2C] border border-gray-800 rounded-2xl p-5 flex items-center justify-between shadow-xl">
+              <div className="space-y-1 max-w-[70%]">
+                <span className="text-xs font-mono text-gray-400 block">
+                  Target Architecture
+                </span>
+                <h3
+                  className="text-base font-bold font-mono truncate tracking-tight text-blue-400"
+                  title={stats?.modelName}
+                >
+                  {stats?.modelName || "None Loaded"}
+                </h3>
+                <span className="text-[10px] text-gray-500 block font-mono mt-1">
+                  Temperature Lock: 0.1
+                </span>
+              </div>
+              <div className="p-3 bg-[#0B0F19] border border-gray-800 rounded-xl text-purple-400">
+                <Cpu className="h-5 w-5" />
+              </div>
+            </div>
+
+            {/* Average Comp Latency Loop */}
+            <div className="bg-[#151B2C] border border-gray-800 rounded-2xl p-5 flex items-center justify-between shadow-xl">
+              <div className="space-y-1">
+                <span className="text-xs font-mono text-gray-400 block">
+                  Avg Render Latency
+                </span>
+                <h3 className="text-2xl font-bold font-mono text-white">
+                  {stats?.avgDurationSec.toFixed(2)}s
+                </h3>
+                <span className="text-[10px] text-gray-500 block font-mono">
+                  Tokens streaming calculation loop
+                </span>
+              </div>
+              <div className="p-3 bg-[#0B0F19] border border-gray-800 rounded-xl text-amber-400">
+                <Clock className="h-5 w-5" />
+              </div>
+            </div>
+
+            {/* Total Telemetry Records */}
+            <div className="bg-[#151B2C] border border-gray-800 rounded-2xl p-5 flex items-center justify-between shadow-xl">
+              <div className="space-y-1">
+                <span className="text-xs font-mono text-gray-400 block">
+                  Active Workspace Pipeline
+                </span>
+                <h3 className="text-2xl font-bold font-mono text-white">
+                  {stats?.totalGenerations} Runs
+                </h3>
+                <span className="text-[10px] text-emerald-400 font-mono truncate block max-w-[150px]">
+                  ID: {stats?.activeSessionId}
+                </span>
+              </div>
+              <div className="p-3 bg-[#0B0F19] border border-gray-800 rounded-xl text-emerald-400">
+                <Layers className="h-5 w-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* 📊 ROW 2: GENERATION SUCCESS RATIOS */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-[#151B2C] border border-gray-800 rounded-2xl p-6 flex flex-col justify-center items-center text-center shadow-xl space-y-4">
+              <h3 className="text-sm font-medium font-mono text-gray-400 tracking-wide w-full text-left">
+                Pipeline Health Summary
+              </h3>
+              <div className="relative flex items-center justify-center">
+                {/* Visual calculation fallback ratio metrics */}
+                <div className="text-4xl font-extrabold font-mono text-white">
+                  {stats && stats.totalGenerations > 0
+                    ? (
+                        (stats.successCount / stats.totalGenerations) *
+                        100
+                      ).toFixed(0)
+                    : 0}
+                  %
+                </div>
+              </div>
+              <p className="text-xs font-mono text-gray-500">
+                Compiles completed successfully without compilation syntax crash
+                blocks.
+              </p>
+            </div>
+
+            {/* Status Split Columns */}
+            <div className="lg:col-span-2 bg-[#151B2C] border border-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 className="text-sm font-medium font-mono text-gray-400 tracking-wide">
+                Compilation States Manifest
+              </h3>
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="bg-[#0B0F19] border border-gray-800/80 p-4 rounded-xl text-center space-y-1">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" />
+                  <span className="text-xs font-mono text-gray-400 block pt-1">
+                    Synced Assets
+                  </span>
+                  <div className="text-lg font-bold font-mono text-white">
+                    {stats?.successCount}
+                  </div>
+                </div>
+                <div className="bg-[#0B0F19] border border-gray-800/80 p-4 rounded-xl text-center space-y-1">
+                  <XCircle className="h-5 w-5 text-red-400 mx-auto" />
+                  <span className="text-xs font-mono text-gray-400 block pt-1">
+                    System Errors
+                  </span>
+                  <div className="text-lg font-bold font-mono text-white">
+                    {stats?.failedCount}
+                  </div>
+                </div>
+                <div className="bg-[#0B0F19] border border-gray-800/80 p-4 rounded-xl text-center space-y-1">
+                  <Clock className="h-5 w-5 text-gray-400 mx-auto" />
+                  <span className="text-xs font-mono text-gray-400 block pt-1">
+                    User Aborted
+                  </span>
+                  <div className="text-lg font-bold font-mono text-white">
+                    {stats?.cancelledCount}
                   </div>
                 </div>
               </div>
-
-              <div className="mt-6 pt-4 border-t border-gray-800/60 flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setSelectedComponent(comp);
-                    setViewerTab("preview");
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-blue-900/20"
-                >
-                  <Code className="h-3.5 w-3.5" />
-                  Inspect & Preview
-                </button>
-                <a
-                  href={comp.figma_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-[#0B0F19] border border-gray-700 text-gray-400 hover:text-gray-200 p-2.5 rounded-xl transition"
-                  title="Open Source Figma Blueprint Link"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* DETAILED SIDE-DRAWER PANEL WORKSPACE: Renders Preview + Code Side-by-Side dynamically */}
-      {selectedComponent && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end transition duration-300">
-          <div className="w-full max-w-4xl bg-[#0B0F19] border-l border-gray-800 h-full flex flex-col shadow-2xl p-6 space-y-4 animate-in slide-in-from-right duration-200">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-4">
-              <div>
-                <h2 className="text-xl font-bold text-white tracking-wide">
-                  {selectedComponent.name}
-                </h2>
-                <p className="text-xs text-gray-500 font-mono mt-0.5">
-                  ID: {selectedComponent.id}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedComponent(null)}
-                className="text-gray-400 hover:text-white bg-gray-800/50 p-2 rounded-xl border border-gray-700/50 transition"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between bg-[#151B2C] border border-gray-800 rounded-xl px-4 py-2">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setViewerTab("preview")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition font-mono ${
-                    viewerTab === "preview"
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "text-gray-400 hover:text-gray-200"
-                  }`}
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  Interactive Preview
-                </button>
-                <button
-                  onClick={() => setViewerTab("code")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition font-mono ${
-                    viewerTab === "code"
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "text-gray-400 hover:text-gray-200"
-                  }`}
-                >
-                  <Terminal className="h-3.5 w-3.5" />
-                  Source Code Structure
-                </button>
-              </div>
-
-              {viewerTab === "code" && (
-                <button
-                  onClick={() =>
-                    handleCopy(
-                      cleanMarkdownWrappers(selectedComponent.generated_code),
-                    )
-                  }
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-gray-400 hover:text-white bg-[#0B0F19] border border-gray-800 rounded-lg transition"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-green-400" />
-                      <span className="text-green-400">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>Copy Snapshot</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1 min-h-0 bg-[#0E1322] border border-gray-800 rounded-2xl overflow-hidden relative">
-              {viewerTab === "preview" ? (
-                <div className="w-full h-full p-2 overflow-auto">
-                  <LiveCanvasView
-                    code={cleanMarkdownWrappers(
-                      selectedComponent.generated_code,
-                    )}
-                  />
-                </div>
-              ) : (
-                <pre className="w-full h-full p-5 overflow-auto font-mono text-xs text-blue-400 selection:bg-blue-500/20 bg-[#0B0F19] leading-relaxed whitespace-pre-wrap">
-                  {cleanMarkdownWrappers(selectedComponent.generated_code)}
-                </pre>
-              )}
             </div>
           </div>
-        </div>
+
+          {/* 📃 ROW 3: RECENT AUDIT LEDGER TRANSACTION TAIL */}
+          <div className="bg-[#151B2C] border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-800/80">
+              <h3 className="text-sm font-medium font-mono text-gray-400 tracking-wide">
+                Real-time Telemetry Logs Stream
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-xs font-mono">
+                <thead>
+                  <tr className="bg-[#0B0F19] border-b border-gray-800 text-gray-400">
+                    <th className="p-4 font-semibold">Timestamp</th>
+                    <th className="p-4 font-semibold">Action Engine Route</th>
+                    <th className="p-4 font-semibold">
+                      Figma Isolated Frame Target
+                    </th>
+                    <th className="p-4 font-semibold">Streaming Latency</th>
+                    <th className="p-4 font-semibold">Audit State Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/60 text-gray-300">
+                  {stats?.recentLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-[#0E1322] transition">
+                      <td className="p-4 text-gray-500 whitespace-nowrap">
+                        {log.timestamp}
+                      </td>
+                      <td className="p-4 font-medium text-blue-400">
+                        {log.action}
+                      </td>
+                      <td className="p-4 truncate max-w-[180px]">
+                        {log.target_component}
+                      </td>
+                      <td className="p-4 text-amber-400">{log.duration}</td>
+                      <td className="p-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            log.status === "SUCCESS"
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : log.status === "ERROR"
+                                ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                : "bg-gray-500/10 text-gray-400 border border-gray-500/20"
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {stats?.recentLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-gray-500">
+                        Operational database pipeline table logs are completely
+                        empty.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

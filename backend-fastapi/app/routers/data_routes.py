@@ -35,6 +35,7 @@ async def get_components(x_session_id: Optional[str] = Header(None)):
               "status": comp.status,
               "session_id": comp.session_id,
               "last_updated": comp.last_updated,
+              "user_prompt": comp.user_prompt,
           }
           for comp in components
       ]
@@ -56,7 +57,8 @@ async def get_audit_logs(x_session_id: Optional[str] = Header(None)):
               DBAuditLog.session_id == session_id,
               DBAuditLog.session_id == "PORTFOLIO_SEED"
           ))
-          .order_by(desc(DBAuditLog.timestamp))
+          # .order_by(desc(DBAuditLog.timestamp))
+          .order_by(DBAuditLog.id.desc())
       )
       result = await session.execute(stmt)
       logs = result.scalars().all()

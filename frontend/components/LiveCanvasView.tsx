@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Play, ShieldAlert, Loader2 } from "lucide-react";
+import { Play, ShieldAlert } from "lucide-react";
 
 interface LiveCanvasViewProps {
   code: string | null;
@@ -14,14 +14,16 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
   useEffect(() => {
     if (!code || !iframeRef.current) return;
 
+    // Reset the error state immediately when new code changes are injected
     setRenderError(null);
 
-    // 1. Clean out ES modules syntax so Babel Standalone compiles safely
+    // 1. Clean out ES modules syntax safely without breaking the function declaration
     const cleanedCode = code
-      .replace(/import\s+[\s\S]*?\s+from\s+['"].*?['"];?/g, "") // Strip imports
-      .replace(/export\s+default\s+\w+;?/g, ""); // Strip export default
+      .replace(/import\s+[\s\S]*?\s+from\s+['"].*?['"];?/g, "") // Strip imports cleanly
+      .replace(/export\s+default\s+(?=function|class|const|let|var)/g, "") // Strip just "export default " keywords
+      .replace(/export\s+default\s+\w+;?/g, ""); // Handle trailing single line variants like "export default App;"
 
-    // 2. Build a completely isolated HTML sandboxed runtime environment
+    // 2. Build a completely isolated HTML sandboxed runtime environment with internal Error Handling
     const srcDoc = `
       <!DOCTYPE html>
       <html lang="en">
@@ -34,7 +36,6 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
         
         <style>
           body { margin: 0; background-color: transparent; font-family: sans-serif; }
-          /* Custom scrollbar to match dashboard layout aesthetics */
           ::-webkit-scrollbar { width: 6px; height: 6px; }
           ::-webkit-scrollbar-track { background: transparent; }
           ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
@@ -44,15 +45,38 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
         <div id="canvas-runtime-root"></div>
 
         <script type="text/babel">
-          // Catch and relay nested compiler/runtime errors directly to parent view
+          // Global syntax or compilation execution script error catcher
           window.addEventListener('error', (event) => {
             window.parent.postMessage({ type: 'CANVAS_RUNTIME_ERROR', error: event.message }, '*');
           });
 
+          // React Component Lifecycle Error Boundary to trap runtime rendering failures
+          class ErrorBoundary extends React.Component {
+            constructor(props) {
+              super(props);
+              this.state = { hasError: false };
+            }
+            static getDerivedStateFromError(error) {
+              return { hasError: true };
+            }
+            componentDidCatch(error, errorInfo) {
+              window.parent.postMessage({ type: 'CANVAS_RUNTIME_ERROR', error: error.message }, '*');
+            }
+            render() {
+              if (this.state.hasError) {
+                return (
+                  <div style={{ padding: '20px', color: '#ef4444', fontFamily: 'monospace', fontSize: '12px' }}>
+                    ⚠️ React Rendering Error: Check component implementation details.
+                  </div>
+                );
+              }
+              return this.props.children;
+            }
+          }
+
           try {
             ${cleanedCode}
 
-            // Target the root and boot up our compiled dynamic React element node
             const RootElement = typeof App !== 'undefined' ? App : () => (
               <div className="p-6 text-amber-500 font-mono text-xs">
                 ⚠️ Warning: Could not isolate an 'App' definition entry point component.
@@ -61,7 +85,11 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
 
             const container = document.getElementById('canvas-runtime-root');
             const root = ReactDOM.createRoot(container);
-            root.render(<RootElement />);
+            root.render(
+              <ErrorBoundary>
+                <RootElement />
+              </ErrorBoundary>
+            );
           } catch (err) {
             window.parent.postMessage({ type: 'CANVAS_RUNTIME_ERROR', error: err.message }, '*');
           }
@@ -70,11 +98,9 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
       </html>
     `;
 
-    // 3. Mount the isolated source payload into the frame runtime execution block
     const iframe = iframeRef.current;
     iframe.srcdoc = srcDoc;
 
-    // 4. Set up window message listener to intercept compiled UI execution faults
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === "CANVAS_RUNTIME_ERROR") {
         setRenderError(event.data.error);
@@ -114,7 +140,7 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
       {/* Frame Container */}
       <div className="flex-1 bg-white relative">
         {renderError ? (
-          <div className="absolute inset-0 bg-red-950/10 backdrop-blur-sm flex items-center justify-center p-6 z-10">
+          <div className="absolute inset-0 bg-red-950/20 backdrop-blur-sm flex items-center justify-center p-6 z-10 animate-in fade-in duration-150">
             <div className="bg-[#151B2C] border border-red-900/50 p-5 rounded-xl max-w-md w-full shadow-2xl space-y-3">
               <div className="flex items-center gap-2.5 text-red-400 font-semibold text-sm">
                 <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -122,6 +148,10 @@ export default function LiveCanvasView({ code }: LiveCanvasViewProps) {
               </div>
               <p className="text-xs font-mono text-gray-300 bg-red-950/30 p-3 rounded-lg border border-red-900/20 max-h-32 overflow-y-auto">
                 {renderError}
+              </p>
+              <p className="text-[11px] text-gray-400 italic">
+                Fix the syntax errors or omissions in your editor above to
+                trigger live re-compilation.
               </p>
             </div>
           </div>

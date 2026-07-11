@@ -1,10 +1,14 @@
 import os
 import sys
 from urllib.parse import urlparse, parse_qs
+from pathlib import Path  # Added for simple file system operations
 import mcp.types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from app.core.config import settings
+
+# Global directory mapping for local node inspection snapshots
+CACHE_DIR = Path(".figma_cache")
 
 # ==============================================================================
 # 🛠️ PROTOCOL SHIELD: MONKEYPATCH TO FILTER OUT UNEXPECTED NODE CONSOLE LOGS
@@ -18,8 +22,6 @@ def _resilient_validate_json(cls, json_data, *args, **kwargs):
   try:
     data_str = json_data.decode('utf-8', errors='ignore') if isinstance(json_data, bytes) else str(json_data)
 
-    # If the line doesn't start with a JSON bracket, it's a rogue console.log statement.
-    # FIX: We now use a valid parameter-less specification method to completely bypass Pydantic validation noise.
     if not data_str.strip().startswith("{"):
       return _orig_validate_json('{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}')
 
@@ -28,7 +30,6 @@ def _resilient_validate_json(cls, json_data, *args, **kwargs):
     return _orig_validate_json('{"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}')
 
 
-# Bind the interceptor directly into the MCP parsing library
 mcp.types.JSONRPCMessage.model_validate_json = _resilient_validate_json
 # ==============================================================================
 
@@ -49,7 +50,6 @@ def parse_figma_url(url: str) -> tuple[str, str | None]:
   query = parse_qs(parsed.query)
   raw_node_id = query.get("node-id", [None])[0]
 
-  # Ensure the standard API colon formatting is applied if a node ID exists
   node_id = raw_node_id.replace("-", ":") if raw_node_id else None
   return file_key, node_id
 
@@ -59,6 +59,18 @@ async def fetch_figma_node_data(figma_url: str) -> str:
   file_key, node_id = parse_figma_url(figma_url)
   if not file_key:
     raise ValueError("Invalid Figma URL schema. Unable to extract File Key.")
+
+  # ------------------------------------------------------------------------
+  # 📂 LAYER A: CACHE LOOKUP & BYPASS INTERCEPTOR
+  # ------------------------------------------------------------------------
+  safe_node_id = str(node_id).replace(":", "-") if node_id else "full_canvas"
+  cache_filename = f"{file_key}_{safe_node_id}.json"
+  cache_file_path = CACHE_DIR / cache_filename
+
+  if cache_file_path.exists():
+    print(f"📂 [Figma Cache Hit]: Bypassing MCP call. Loading cached design tree directly from: {cache_file_path}")
+    return cache_file_path.read_text(encoding="utf-8")
+  # ------------------------------------------------------------------------
 
   if not settings.FIGMA_ACCESS_TOKEN:
     raise ValueError("FIGMA_ACCESS_TOKEN is completely missing from your environmental configurations.")
@@ -75,22 +87,16 @@ async def fetch_figma_node_data(figma_url: str) -> str:
     async with ClientSession(read_stream, write_stream) as session:
       await session.initialize()
 
-      # 1. Fetch the live tool definitions from the server
       tools_manifest = await session.list_tools()
-
-      # 2. Update target to the author's new tool name
       target_tool = "get_figma_design"
 
-      # Find the specific tool schema definition
       tool_def = next((t for t in tools_manifest.tools if t.name == target_tool), None)
       if not tool_def:
         raise ValueError(f"Critical: Target tool '{target_tool}' was not found on this MCP server.")
 
-      # 3. SELF-HEALING PARAMETER MAPPING
       arguments = {}
       schema_props = tool_def.inputSchema.get("properties", {}) if hasattr(tool_def, "inputSchema") else {}
 
-      # Map the File Key parameter dynamically
       if "file_key" in schema_props:
         arguments["file_key"] = file_key
       elif "fileKey" in schema_props:
@@ -98,7 +104,6 @@ async def fetch_figma_node_data(figma_url: str) -> str:
       else:
         arguments["fileKey"] = file_key
 
-      # Map the Node ID parameter dynamically if it exists in the URL
       if node_id:
         if "node_id" in schema_props:
           arguments["node_id"] = node_id
@@ -111,7 +116,6 @@ async def fetch_figma_node_data(figma_url: str) -> str:
 
       print(f"🚀 [MCP Invocation]: Routing to updated tool '{target_tool}' with schema arguments: {arguments}")
 
-      # 4. Execute the tool call
       result = await session.call_tool(target_tool, arguments)
 
       if not result.content or len(result.content) == 0:
@@ -121,5 +125,17 @@ async def fetch_figma_node_data(figma_url: str) -> str:
 
       if "error" in response_text.lower() or "-32602" in response_text:
         raise ValueError(f"Figma MCP server rejected parameters: {response_text}")
+
+      # ------------------------------------------------------------------------
+      # 💾 LAYER B: WRITE SNAPSHOT TO CACHE FOR EASIER RUNTIME INSPECTION
+      # ------------------------------------------------------------------------
+      try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_file_path.write_text(response_text, encoding="utf-8")
+        print(
+            f"💾 [Figma Cache Saved]: Raw layout tree stored successfully. Inspect this file to verify structural data: {cache_file_path}")
+      except Exception as cache_err:
+        print(f"⚠️ [Figma Cache Error]: Failed to save snapshot file footprint: {cache_err}")
+      # ------------------------------------------------------------------------
 
       return response_text

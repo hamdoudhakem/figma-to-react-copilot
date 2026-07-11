@@ -47,7 +47,7 @@ async def generate_component(
     execution_status = "SUCCESS"
     figma_json_str = "{}"
 
-    # Phase A: Run MCP Fetch (Unchanged)
+    # Phase A: Run MCP Fetch
     try:
       figma_json_str = await fetch_figma_node_data(request.figma_url)
     except Exception as e:
@@ -55,6 +55,7 @@ async def generate_component(
       clean_error_msg = unpack_exception_message(e)
       yield f"⚠️ [MCP Error]: {clean_error_msg}"
 
+      # FIX: Pass request.prompt_override to log prompt state on early extractions failures
       await asyncio.shield(record_telemetry(
           start_time=start_time,
           target=file_key or "Unknown",
@@ -62,25 +63,32 @@ async def generate_component(
           status=execution_status,
           code_snapshot="",
           figma_url=request.figma_url,
-          session_id=session_id
+          session_id=session_id,
+          user_prompt=request.prompt_override
       ))
       return
 
-    # Phase B: Prompt Assembly & Token Streaming (Unchanged)
+    # Phase B: Prompt Assembly & Token Streaming (Structure-Protected & Comment-Flexible)
     try:
       system_prompt = (
           "You are an elite Frontend Engineer expert in React and Tailwind CSS.\n"
-          "Your objective is to convert a structural Figma JSON tree into high-fidelity React code.\n"
-          "Requirements:\n"
-          "1. Return ONLY executable React component code.\n"
-          "2. Apply responsive layouts using Tailwind utility classes exclusively.\n"
-          "3. Do NOT provide markdown explanations, introductory sentences, or summary paragraphs.\n"
-          "4. Output must start immediately with imports and export a default component named 'App'.\n"
+          "Your objective is to convert a structural Figma JSON tree into high-fidelity React code.\n\n"
+          "CRUCIAL STRUCTURAL CONSTRAINTS (NEVER VIOLATE):\n"
+          "1. Return ONLY valid, executable React component code layers.\n"
+          "2. Do NOT provide markdown explanations, introductory sentences, chatty feedback, or summary paragraphs OUTSIDE of the code block. Your output must be purely code.\n"
+          "3. Output must start immediately with imports and export a default component named 'App'.\n"
+          "4. Apply responsive layouts using Tailwind utility classes exclusively.\n"
+          "5. FLEXIBILITY RULE: If the user asks for explanations, documentation, or code comments, you MUST implement them, but they must live strictly INSIDE the React component using standard programming comment syntax (e.g., standard JavaScript inline '//' comments or React '{/* */}' block comments)."
       )
 
       user_content = f"Here is the clean structural Figma design node payload:\n```json\n{figma_json_str}\n```\n"
+
       if request.prompt_override:
-        user_content += f"Additional user instructions: {request.prompt_override}\n"
+        user_content += (
+            f"\n[INTERNAL CODE SPECIFICATION DIRECTIVE]\n"
+            f"Modify the component implementation to satisfy this directive completely: \"{request.prompt_override}\"\n"
+            f"Note: If this directive asks for comments, add detailed comments directly inside the code layers to explain the architecture."
+        )
 
       loop = asyncio.get_event_loop()
       response = await loop.run_in_executor(
@@ -104,14 +112,13 @@ async def generate_component(
           await asyncio.sleep(0.005)
 
     except GeneratorExit:
-      # Catch client disconnects (tabs closed mid-stream) so we can log partial code
       execution_status = "CANCELLED"
       raise
     except Exception as e:
       execution_status = "ERROR"
       yield f"⚠️ [LLM Streaming Error]: {str(e)}"
     finally:
-      # Phase C: Automation Pipeline (Upgraded for complete logging transparency)
+      # Phase C: Automation Pipeline (FIXED: Added request.prompt_override context)
       await asyncio.shield(record_telemetry(
           start_time=start_time,
           target=file_key or "Unknown Component",
@@ -119,20 +126,30 @@ async def generate_component(
           status=execution_status,
           code_snapshot=accumulated_code,
           figma_url=request.figma_url,
-          session_id=session_id
+          session_id=session_id,
+          user_prompt=request.prompt_override
       ))
 
   return StreamingResponse(stream_tokens_and_automate_save(), media_type="text/plain")
 
 
-async def record_telemetry(start_time, target, action, status, code_snapshot="", figma_url=None, session_id="PORTFOLIO_SEED"):
-  """Automated Database Writer with Smart Upserting and Global State Sync."""
+async def record_telemetry(
+    start_time,
+    target,
+    action,
+    status,
+    code_snapshot="",
+    figma_url=None,
+    session_id="PORTFOLIO_SEED",
+    user_prompt=None
+):
+  """Automated Database Writer with Historial Lineage Preservation (Append-Only)."""
   duration = f"{(time.perf_counter() - start_time):.2f}s"
   current_time_str = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
   async with AsyncSessionLocal() as session:
     try:
-      # 1. Always write an operational audit tracking log
+      # 1. Write an operational audit tracking log for execution profiling
       log_entry = DBAuditLog(
           action=action,
           target_component=target,
@@ -142,37 +159,21 @@ async def record_telemetry(start_time, target, action, status, code_snapshot="",
       )
       session.add(log_entry)
 
-      # 2. Synchronize the component state if a Figma URL is present
+      # 2. Append a brand-new component record to preserve complete version history
       if figma_url:
         component_name = f"Sync-{target[:8]}"
 
-        # Check if a record already exists for this URL within the active session
-        stmt = select(DBComponent).where(
-            DBComponent.figma_url == figma_url,
-            DBComponent.session_id == session_id
+        print(f"🆕 [Telemetry Sync]: Committing fresh prompt generation variant -> Status: {status}")
+        new_component = DBComponent(
+            name=component_name,
+            figma_url=figma_url,
+            generated_code=code_snapshot,
+            user_prompt=user_prompt,  # Preserves the exact prompt used for this specific run
+            status="SYNCED" if status == "SUCCESS" else status,
+            last_updated=current_time_str,
+            session_id=session_id
         )
-        query_result = await session.execute(stmt)
-        existing_component = query_result.scalars().first()
-
-        if existing_component:
-          print(f"🔄 [Telemetry Sync]: Updating existing asset record: {existing_component.id} -> Status: {status}")
-          existing_component.name = component_name
-          # Update the code if it succeeded, or keep old code if a brand new run threw an error
-          if status == "SUCCESS" or code_snapshot:
-            existing_component.generated_code = code_snapshot
-          existing_component.status = "SYNCED" if status == "SUCCESS" else status
-          existing_component.last_updated = current_time_str
-        else:
-          print(f"🆕 [Telemetry Sync]: Creating a fresh tracking definition row -> Status: {status}")
-          new_component = DBComponent(
-              name=component_name,
-              figma_url=figma_url,
-              generated_code=code_snapshot,
-              status="SYNCED" if status == "SUCCESS" else status,
-              last_updated=current_time_str,
-              session_id=session_id
-          )
-          session.add(new_component)
+        session.add(new_component)
 
       await session.commit()
       print(f"🍏 [Telemetry Sync]: Successfully flushed transactional updates for session {session_id}")

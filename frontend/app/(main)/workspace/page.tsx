@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import LiveCanvasView from "@/app/(main)/components/LiveCanvasView";
+import LiveCanvasView from "@/components/LiveCanvasView"; // UPDATED ROUTE TO MATCH YOUR STRUCTURE
 import { getOrCreateSessionId } from "@/app/utils/session";
 import {
   Sparkles,
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 export default function AIComponentStudio() {
-  const queryClient = useQueryClient(); // Instantiated to control global React Query cache state
+  const queryClient = useQueryClient();
 
   const [figmaUrl, setFigmaUrl] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -37,7 +37,6 @@ export default function AIComponentStudio() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Clean syntax decorators added by the model
   const cleanMarkdownWrappers = (rawCode: string) => {
     let clean = rawCode.trim();
     if (clean.startsWith("```")) {
@@ -57,6 +56,7 @@ export default function AIComponentStudio() {
     setError(null);
 
     try {
+      // Points directly to your Next configuration rewrite/proxy hook or local backend engine mount
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -65,7 +65,7 @@ export default function AIComponentStudio() {
         },
         body: JSON.stringify({
           figma_url: figmaUrl.trim(),
-          prompt: prompt.trim(),
+          prompt_override: prompt.trim(), // Updated payload key to map to your FastAPI structural Pydantic model
         }),
       });
 
@@ -88,7 +88,7 @@ export default function AIComponentStudio() {
     } finally {
       setIsLoading(false);
 
-      // FIXED: Force React Query to clear cache and pull fresh entries for both tables immediately
+      // Force context cache state updates instantly
       queryClient.invalidateQueries({ queryKey: ["logs"] });
       queryClient.invalidateQueries({ queryKey: ["components"] });
     }
@@ -108,7 +108,7 @@ export default function AIComponentStudio() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch flex-1 min-h-[550px]">
-        {/* Left Control Column */}
+        {/* Left Control Panel */}
         <div className="lg:col-span-4 bg-[#151B2C] border border-gray-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
           <form
             onSubmit={handleGenerate}
@@ -127,7 +127,7 @@ export default function AIComponentStudio() {
                     type="url"
                     value={figmaUrl}
                     onChange={(e) => setFigmaUrl(e.target.value)}
-                    placeholder="https://www.figma.com/file/..."
+                    placeholder="https://www.figma.com/design/..."
                     className="w-full bg-[#0B0F19] border border-gray-800 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition font-mono"
                     disabled={isLoading}
                   />
@@ -175,7 +175,7 @@ export default function AIComponentStudio() {
           </form>
         </div>
 
-        {/* Right Workspace Preview/Code Panel */}
+        {/* Right Sandbox Render Panel */}
         <div className="lg:col-span-8 flex flex-col h-full space-y-3">
           <div className="flex items-center justify-between bg-[#151B2C] border border-gray-800 rounded-xl px-4 py-2">
             <div className="flex items-center gap-2">
@@ -209,7 +209,6 @@ export default function AIComponentStudio() {
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md">
                   <Edit3 className="h-3 w-3" /> Live Sandbox Workspace
-                  (Editable)
                 </span>
                 <button
                   onClick={handleCopy}
@@ -266,7 +265,6 @@ export default function AIComponentStudio() {
                 <textarea
                   value={generatedCode}
                   onChange={(e) => setGeneratedCode(e.target.value)}
-                  placeholder="Paste or modify code layout components here..."
                   className="w-full h-full min-h-[450px] border border-gray-800 rounded-2xl bg-[#0B0F19] font-mono text-xs text-blue-400 p-5 focus:outline-none focus:border-blue-500 resize-none leading-relaxed selection:bg-blue-500/20"
                   spellCheck={false}
                 />

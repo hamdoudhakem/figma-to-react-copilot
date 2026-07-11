@@ -3,10 +3,9 @@
 import React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import LiveCanvasView from "@/app/(main)/components/LiveCanvasView";
+import LiveCanvasView from "@/components/LiveCanvasView"; // Clean top-level alias import
 import { getOrCreateSessionId } from "@/app/utils/session";
-import { ArrowLeft, Loader2, Database, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Loader2, ExternalLink } from "lucide-react";
 
 interface DBComponent {
   id: string;
@@ -29,7 +28,6 @@ export default function ComponentInspectionPage() {
   } = useQuery<DBComponent>({
     queryKey: ["component-entity", id],
     queryFn: async () => {
-      // Fetches the snapshot dataset directly from your components API list
       const response = await fetch("/api/components", {
         headers: { "X-Session-ID": getOrCreateSessionId() },
       });
@@ -62,7 +60,7 @@ export default function ComponentInspectionPage() {
           Error: {error ? (error as Error).message : "Component missing."}
         </div>
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push("/library")} // Redirects cleanly back to your code vault library
           className="text-xs text-blue-400 hover:underline flex items-center gap-1 mx-auto"
         >
           <ArrowLeft className="h-3 w-3" /> Return to Library
@@ -77,7 +75,7 @@ export default function ComponentInspectionPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/library")} // Redirects cleanly back to your code vault library
             className="p-2.5 bg-[#151B2C] border border-gray-800 hover:border-gray-700 rounded-xl text-gray-400 hover:text-white transition"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -109,7 +107,7 @@ export default function ComponentInspectionPage() {
       </div>
 
       {/* Main Canvas Presentation View Layout */}
-      <div className="flex-1 min-h-[450px]">
+      <div className="flex-1 min-h-[500px]">
         <LiveCanvasView code={component.generated_code} />
       </div>
     </div>
