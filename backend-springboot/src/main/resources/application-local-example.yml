@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db.iixyjmwxxhtccpynanee.supabase.co:5432/postgres
+    username: postgres
+    password: YOUR PASSWORD
+    driver-class-name: org.postgresql.Driver
+
+app:
+  llm:
+    base-url: http://localhost:11434/v1
+    api-key: ollama-local-token
+    model: qwen2.5-coder:7b
+  figma:
+    access-token: YOUR FIGMA ACCES TOKEN

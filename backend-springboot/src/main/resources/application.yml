@@ -1,0 +1,38 @@
+server:
+  port: 8000
+  servlet:
+    context-path: /api
+
+spring:
+  threads:
+    virtual:
+      enabled: true # Uses Java 21 Virtual Threads to handle high concurrency seamlessly
+
+  datasource:
+    url: ${DATABASE_URL:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Maps exactly to pool_size=5 and max_overflow=10 from database.py
+      maximum-pool-size: 15
+      minimum-idle: 5
+      # Maps to pool_pre_ping=True (automatically validates connections)
+      connection-test-query: SELECT 1
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate # Ensures Spring Boot doesn't accidentally overwrite your existing Supabase schema
+    show-sql: false
+
+  mvc:
+    async:
+      request-timeout: 300000 # 5 minutes in milliseconds
+
+# Custom application parameter slots matching config.py
+app:
+  llm:
+    base-url: ${LLM_BASE_URL:http://localhost:11434/v1}
+    api-key: ${LLM_API_KEY:ollama-local-token}
+    model: ${LLM_MODEL:qwen2.5-coder:7b}
+  figma:
+    access-token: ${FIGMA_ACCESS_TOKEN:}

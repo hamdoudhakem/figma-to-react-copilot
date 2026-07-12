@@ -35,7 +35,6 @@ export default function HistoryLogPage() {
   } = useQuery<DBAuditLog[]>({
     queryKey: ["logs"],
     queryFn: async () => {
-      // FIX: Added the critical session header so it queries your active automated telemetry pool
       const response = await fetch("/api/logs", {
         headers: {
           "X-Session-ID": getOrCreateSessionId(),

@@ -40,34 +40,3 @@ async def main():
 
 if __name__ == "__main__":
   asyncio.run(main())
-
-# async def main():
-#   print("🔍 Connexion au serveur MCP pour lister les outils disponibles...")
-
-#   import os
-#   from mcp import ClientSession, StdioServerParameters
-#   from mcp.client.stdio import stdio_client
-#   from app.core.config import settings
-
-#   server_params = StdioServerParameters(
-#       command="npx",
-#       args=["-y", "@tmegit/figma-developer-mcp", "--stdio"],
-#       env={**os.environ, "FIGMA_API_KEY": settings.FIGMA_ACCESS_TOKEN}
-#   )
-
-#   async with stdio_client(server_params) as (read_stream, write_stream):
-#     async with ClientSession(read_stream, write_stream) as session:
-#       await session.initialize()
-
-#       # 🎯 On demande nativement la liste des outils au serveur MCP
-#       tools_response = await session.list_tools()
-
-#       print("\n🛠️  OUTILS TROUVÉS SUR CE SERVEUR MCP :")
-#       print("-" * 50)
-#       for tool in tools_response.tools:
-#         print(f"👉 Nom de l'outil : {tool.name}")
-#         print(f"   Description   : {tool.description}\n")
-#       print("-" * 50)
-
-# if __name__ == "__main__":
-#   asyncio.run(main())

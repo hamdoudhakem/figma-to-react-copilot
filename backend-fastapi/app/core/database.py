@@ -10,7 +10,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,  # Discards stale or dropped connections automatically
     pool_size=5,
-    max_overflow=10
+    max_overflow=10,
 )
 
 AsyncSessionLocal = async_sessionmaker(

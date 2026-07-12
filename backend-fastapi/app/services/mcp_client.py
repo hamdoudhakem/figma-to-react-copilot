@@ -10,9 +10,7 @@ from app.core.config import settings
 # Global directory mapping for local node inspection snapshots
 CACHE_DIR = Path(".figma_cache")
 
-# ==============================================================================
-# 🛠️ PROTOCOL SHIELD: MONKEYPATCH TO FILTER OUT UNEXPECTED NODE CONSOLE LOGS
-# ==============================================================================
+# MONKEYPATCH TO FILTER OUT UNEXPECTED NODE CONSOLE LOGS
 _orig_validate_json = mcp.types.JSONRPCMessage.model_validate_json
 
 
@@ -31,7 +29,6 @@ def _resilient_validate_json(cls, json_data, *args, **kwargs):
 
 
 mcp.types.JSONRPCMessage.model_validate_json = _resilient_validate_json
-# ==============================================================================
 
 
 def parse_figma_url(url: str) -> tuple[str, str | None]:
@@ -60,9 +57,7 @@ async def fetch_figma_node_data(figma_url: str) -> str:
   if not file_key:
     raise ValueError("Invalid Figma URL schema. Unable to extract File Key.")
 
-  # ------------------------------------------------------------------------
-  # 📂 LAYER A: CACHE LOOKUP & BYPASS INTERCEPTOR
-  # ------------------------------------------------------------------------
+  # LAYER A: CACHE LOOKUP & BYPASS INTERCEPTOR
   safe_node_id = str(node_id).replace(":", "-") if node_id else "full_canvas"
   cache_filename = f"{file_key}_{safe_node_id}.json"
   cache_file_path = CACHE_DIR / cache_filename
@@ -70,7 +65,6 @@ async def fetch_figma_node_data(figma_url: str) -> str:
   if cache_file_path.exists():
     print(f"📂 [Figma Cache Hit]: Bypassing MCP call. Loading cached design tree directly from: {cache_file_path}")
     return cache_file_path.read_text(encoding="utf-8")
-  # ------------------------------------------------------------------------
 
   if not settings.FIGMA_ACCESS_TOKEN:
     raise ValueError("FIGMA_ACCESS_TOKEN is completely missing from your environmental configurations.")
@@ -126,9 +120,7 @@ async def fetch_figma_node_data(figma_url: str) -> str:
       if "error" in response_text.lower() or "-32602" in response_text:
         raise ValueError(f"Figma MCP server rejected parameters: {response_text}")
 
-      # ------------------------------------------------------------------------
-      # 💾 LAYER B: WRITE SNAPSHOT TO CACHE FOR EASIER RUNTIME INSPECTION
-      # ------------------------------------------------------------------------
+      # LAYER B: WRITE SNAPSHOT TO CACHE FOR EASIER RUNTIME INSPECTION
       try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache_file_path.write_text(response_text, encoding="utf-8")
@@ -136,6 +128,5 @@ async def fetch_figma_node_data(figma_url: str) -> str:
             f"💾 [Figma Cache Saved]: Raw layout tree stored successfully. Inspect this file to verify structural data: {cache_file_path}")
       except Exception as cache_err:
         print(f"⚠️ [Figma Cache Error]: Failed to save snapshot file footprint: {cache_err}")
-      # ------------------------------------------------------------------------
 
       return response_text

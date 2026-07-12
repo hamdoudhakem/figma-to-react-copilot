@@ -24,25 +24,21 @@ export default function MainSharedLayout({
       name: "Analytics Dashboard",
       href: "/dashboard",
       icon: LayoutDashboard,
-      // description: "Ollama telemetry & server logs",
     },
     {
       name: "AI Studio Workspace",
       href: "/workspace",
       icon: Terminal,
-      // description: "Figma engine compilation workspace",
     },
     {
       name: "Component Library",
-      href: "/library", // Your custom 'previous_codes' route folder name
+      href: "/library",
       icon: FolderHeart,
-      // description: "Saved structural database snapshots",
     },
     {
       name: "Audit History Logs",
       href: "/history",
       icon: History,
-      // description: "Database operational tracking rows",
     },
   ];
 
@@ -92,15 +88,6 @@ export default function MainSharedLayout({
                   <div className="space-y-0.5">
                     <span className="text-sm font-medium block tracking-wide">
                       {item.name}
-                    </span>
-                    <span
-                      className={`text-[10px] font-mono block ${
-                        isActive
-                          ? "text-blue-200"
-                          : "text-gray-500 group-hover:text-gray-400"
-                      }`}
-                    >
-                      {item.description}
                     </span>
                   </div>
                 </Link>

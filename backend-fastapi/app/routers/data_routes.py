@@ -6,7 +6,7 @@ from app.models.db_models import DBComponent, DBAuditLog
 
 router = APIRouter()
 
-# 1. Matches GET /api/components (when prefixed with /api in main.py)
+# Matches GET /api/components (when prefixed with /api in main.py)
 
 
 @router.get("/components")
@@ -44,7 +44,6 @@ async def get_components(x_session_id: Optional[str] = Header(None)):
       raise HTTPException(status_code=500, detail=str(e))
 
 
-# 2. FIXED: Changed from "/audit-logs" to "/logs" to match GET /api/logs
 @router.get("/logs")
 async def get_audit_logs(x_session_id: Optional[str] = Header(None)):
   session_id = x_session_id or "PORTFOLIO_SEED"

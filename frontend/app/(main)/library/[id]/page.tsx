@@ -60,7 +60,7 @@ export default function ComponentInspectionPage() {
           Error: {error ? (error as Error).message : "Component missing."}
         </div>
         <button
-          onClick={() => router.push("/library")} // Redirects cleanly back to your code vault library
+          onClick={() => router.push("/library")}
           className="text-xs text-blue-400 hover:underline flex items-center gap-1 mx-auto"
         >
           <ArrowLeft className="h-3 w-3" /> Return to Library
@@ -75,7 +75,7 @@ export default function ComponentInspectionPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/library")} // Redirects cleanly back to your code vault library
+            onClick={() => router.push("/library")}
             className="p-2.5 bg-[#151B2C] border border-gray-800 hover:border-gray-700 rounded-xl text-gray-400 hover:text-white transition"
           >
             <ArrowLeft className="h-4 w-4" />

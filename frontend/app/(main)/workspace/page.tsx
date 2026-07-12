@@ -56,8 +56,8 @@ export default function AIComponentStudio() {
     setError(null);
 
     try {
-      // Points directly to your Next configuration rewrite/proxy hook or local backend engine mount
-      const response = await fetch("/api/generate", {
+      // Call the backend directly to bypass Next.js proxy socket timeouts
+      const response = await fetch("http://localhost:8000/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -65,7 +65,7 @@ export default function AIComponentStudio() {
         },
         body: JSON.stringify({
           figma_url: figmaUrl.trim(),
-          prompt_override: prompt.trim(), // Updated payload key to map to your FastAPI structural Pydantic model
+          prompt_override: prompt.trim(),
         }),
       });
 
@@ -87,8 +87,6 @@ export default function AIComponentStudio() {
       setError(err.message || "An unexpected automation error occurred.");
     } finally {
       setIsLoading(false);
-
-      // Force context cache state updates instantly
       queryClient.invalidateQueries({ queryKey: ["logs"] });
       queryClient.invalidateQueries({ queryKey: ["components"] });
     }

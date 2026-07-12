@@ -1,0 +1,28 @@
+services:
+  # Enterprise Core Data Layer (Spring Boot)
+  backend-springboot:
+    profiles: ["springboot"]
+    build: ./backend-springboot
+    container_name: copilot-springboot
+    ports:
+      - "8000:8000"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
+
+  # High-Performance AI Proxy Layer (FastAPI)
+  backend-fastapi:
+    profiles: ["fastapi"]
+    build: ./backend-fastapi
+    container_name: copilot-fastapi
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend-fastapi/.env
+
+  # Main Workspace Interface (Next.js Application)
+  frontend:
+    build: ./frontend
+    container_name: copilot-frontend
+    ports:
+      - "3000:3000"
